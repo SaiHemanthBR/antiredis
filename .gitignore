@@ -1,0 +1,13 @@
+# macOS generated files
+.DS_Store
+.Spotlight-V100
+.Trashes
+
+# Python3 generated files
+**/__pycache__/
+
+# VSCode generated files
+**/.vscode
+**/.outputs
+**/.others
+temp.html
