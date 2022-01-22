@@ -27,6 +27,9 @@ class ColName(Identifier):
 class RowName(Identifier):
     pass
 
+class FuncName(Identifier):
+    pass
+
 
 quoted_identifier = pp.QuotedString('`')
 identifier = (
@@ -37,6 +40,7 @@ identifier = (
 table_name = identifier().set_parse_action(TableName.parse_action)
 col_name = identifier().set_parse_action(ColName.parse_action)
 row_name = identifier().set_parse_action(RowName.parse_action)
+func_name = identifier().set_parse_action(FuncName.parse_action)
 
 if __name__ == "__main__":
     print(identifier.parse_string('xyz'))
