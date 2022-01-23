@@ -4,20 +4,26 @@ from .token import Token
 from . import symbol as sym
 from . import keyword as kw
 
+
 class WildcardAll(Token):
     pass
+
 
 class NumericLiteral(Token):
     def __init__(self, value) -> None:
         super().__init__()
         self.value = value
 
-    def eval(self):
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__} value='{self.value}'>"
+
+    def eval(self, context):
         return self.value
 
     @classmethod
     def parse_action(cls, toks):
         return NumericLiteral(toks[0])
+
 
 wildcard_all = pp.Literal('*')
 wildcard_all.set_parse_action(WildcardAll.parse_action)

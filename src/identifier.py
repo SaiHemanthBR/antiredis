@@ -11,6 +11,9 @@ class Identifier(Token):
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__} '{self.value}'>"
 
+    def eval(self, context):
+        pass
+
     @classmethod
     def parse_action(cls, toks):
         return cls(toks[0])
@@ -26,6 +29,7 @@ class ColName(Identifier):
 
 class RowName(Identifier):
     pass
+
 
 class FuncName(Identifier):
     pass

@@ -1,3 +1,4 @@
+import time
 import pyparsing as pp
 from .token import Token
 from .literal import literal_value, wildcard_all
@@ -27,11 +28,13 @@ class FuncCall(Token):
         return FuncCall(toks[0], toks[1])
 
 
-class UniaryOp(Token):
+class UnaryOp(Token):
     op_map = {
         '+': lambda rhs: +rhs,
         '-': lambda rhs: -rhs,
         '~': lambda rhs: ~rhs,
+        '!': lambda rhs: not rhs,
+        'NOT': lambda rhs: not rhs,
     }
 
     def __init__(self, rhs, op):
@@ -43,7 +46,7 @@ class UniaryOp(Token):
         return f"<{self.__class__.__name__} operand='{self.rhs}' op='{self.op}'>"
 
     def eval(self, context):
-        return UniaryOp.op_map[self.op](self.rhs.eval(context))
+        return UnaryOp.op_map[self.op](self.rhs.eval(context))
 
     @classmethod
     def parse_action(cls, toks):
@@ -65,6 +68,22 @@ class BinaryOp(Token):
         return cls(toks[0][0], toks[0][2], toks[0][1])
 
 
+class TernaryOp(Token):
+    def __init__(self, lhs, mhs, rhs, op):
+        super().__init__()
+        self.lhs = lhs
+        self.mhs = mhs
+        self.rhs = rhs
+        self.op = op
+
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__} lhs='{self.lhs}' mhs='{self.mhs}' rhs='{self.rhs}' op='{self.op}'>"
+
+    @classmethod
+    def parse_action(cls, toks):
+        return cls(toks[0][0], toks[0][2], toks[0][4], f'{toks[0][1]}_{toks[0][3]}')
+
+
 class ArithOp(BinaryOp):
     op_map = {
         '/': lambda lhs, rhs: lhs / rhs,
@@ -76,6 +95,58 @@ class ArithOp(BinaryOp):
 
     def eval(self, context):
         return ArithOp.op_map[self.op](self.lhs.eval(context), self.rhs.eval(context))
+
+
+class BinaryBitwiseOp(BinaryOp):
+    op_map = {
+        '<<': lambda lhs, rhs: lhs << rhs,
+        '>>': lambda lhs, rhs: lhs >> rhs,
+        '&': lambda lhs, rhs: lhs & rhs,
+        '|': lambda lhs, rhs: lhs | rhs,
+        '^': lambda lhs, rhs: lhs ^ rhs,
+    }
+
+    def eval(self, context):
+        return BinaryBitwiseOp.op_map[self.op](self.lhs.eval(context), self.rhs.eval(context))
+
+
+class BinaryComparisonOp(BinaryOp):
+    op_map = {
+        '=': lambda lhs, rhs: lhs == rhs,
+        '==': lambda lhs, rhs: lhs == rhs,
+        '>=': lambda lhs, rhs: lhs >= rhs,
+        '>': lambda lhs, rhs: lhs > rhs,
+        '<=': lambda lhs, rhs: lhs <= rhs,
+        '<': lambda lhs, rhs: lhs < rhs,
+        '<>': lambda lhs, rhs: lhs != rhs,
+        '!=': lambda lhs, rhs: lhs != rhs,
+    }
+
+    def eval(self, context):
+        return BinaryComparisonOp.op_map[self.op](self.lhs.eval(context), self.rhs.eval(context))
+
+
+class TernaryComparisonOp(TernaryOp):
+    op_map = {
+        'BETWEEN_AND': lambda lhs, mhs, rhs: mhs <= lhs <= rhs,
+        'NOT_BETWEEN_AND': lambda lhs, mhs, rhs: not(mhs <= lhs <= rhs),
+    }
+
+    def eval(self, context):
+        return TernaryComparisonOp.op_map[self.op](self.lhs.eval(context), self.mhs.eval(context), self.rhs.eval(context))
+
+
+class BinaryLogicalOp(BinaryOp):
+    op_map = {
+        'AND': lambda lhs, rhs: lhs and rhs,
+        '&&': lambda lhs, rhs: lhs and rhs,
+        'OR': lambda lhs, rhs: lhs or rhs,
+        '||': lambda lhs, rhs: lhs or rhs,
+        'XOR': lambda lhs, rhs: bool(lhs) != bool(rhs),
+    }
+
+    def eval(self, context):
+        return BinaryLogicalOp.op_map[self.op](self.lhs.eval(context), self.rhs.eval(context))
 
 
 expr = pp.Forward()
@@ -90,46 +161,61 @@ expr_term = (
     | col_name
 )
 
-UNARY, BINARY, TERTIARY = 1, 2, 3
+UNARY, BINARY, TERNARY = 1, 2, 3
 
 """
+Operator Precedence:
+===============================================================================================
 + (unary plus), - (unary minus), ~ (unary bit inversion)
-*, /, DIV, %, MOD
+^
+*, /, %
 -, +
 <<, >>
 &
 |
-= (comparison), <=>, >=, >, <=, <, <>, !=, IS, LIKE, REGEXP, IN, MEMBER OF
-BETWEEN, CASE, WHEN, THEN, ELSE
+= (comparison), >=, >, <=, <, <>, != (add support for <=>, IS, LIKE, REGEXP, IN, MEMBER OF)
+BETWEEN (add support for CASE, WHEN, THEN, ELSE)
 !, NOT
 AND, &&
-^, XOR
+XOR
 OR, ||
 """
+NOT_BETWEEN = (kw.NOT + kw.BETWEEN).set_parse_action(lambda toks: f'{toks[0]}_{toks[1]}')
+
 expr << pp.infix_notation(
     expr_term,
     [
-        (pp.one_of('+ - ~') | kw.NOT, UNARY,
-         pp.opAssoc.RIGHT, UniaryOp.parse_action),
+        (pp.one_of('+ - ~'), UNARY,
+         pp.opAssoc.RIGHT, UnaryOp.parse_action),
 
-        (pp.one_of('/ % *') | kw.NOT, BINARY,
-         pp.opAssoc.LEFT, ArithOp.parse_action),
+        (pp.one_of('^'), BINARY,
+        pp.opAssoc.LEFT, BinaryBitwiseOp.parse_action),
 
-        (pp.one_of('+ -') | kw.NOT, BINARY, pp.opAssoc.LEFT, ArithOp.parse_action),
+        (pp.one_of('/ % *'), BINARY, pp.opAssoc.LEFT, ArithOp.parse_action),
+        (pp.one_of('+ -'), BINARY, pp.opAssoc.LEFT, ArithOp.parse_action),
+
+        (pp.one_of('<< >>'), BINARY, pp.opAssoc.LEFT, BinaryBitwiseOp.parse_action),
+        (pp.one_of('&'), BINARY, pp.opAssoc.LEFT, BinaryBitwiseOp.parse_action),
+        (pp.one_of('|'), BINARY, pp.opAssoc.LEFT, BinaryBitwiseOp.parse_action),
+
+        (pp.one_of('= == >= > <= < <> !='), BINARY,
+         pp.opAssoc.LEFT, BinaryComparisonOp.parse_action),
+
+        ((kw.BETWEEN | NOT_BETWEEN, kw.AND), TERNARY, pp.opAssoc.LEFT,
+         TernaryComparisonOp.parse_action),
+
+        (kw.NOT | '!', UNARY, pp.opAssoc.RIGHT, UnaryOp.parse_action),
+
+        (kw.AND | '&&', BINARY, pp.opAssoc.LEFT, BinaryLogicalOp.parse_action),
+        (kw.XOR, BINARY, pp.opAssoc.LEFT, BinaryLogicalOp.parse_action),
+        (kw.OR | '||', BINARY, pp.opAssoc.LEFT, BinaryLogicalOp.parse_action),
     ]
 )
 
 if __name__ == '__main__':
-    # res = expr.parse_string('-5')[0]
-    # print(res, res.eval())
-
-    # res = expr.parse_string('4 * 5 + 1')[0]
-    # print(res, res.eval())
-
-    # res = expr.parse_string("1 + 4 * 5")[0]
-    # print(res, res.eval())
-
-    exp = "(1 + sum(x, y)) * 5 / 3 - 7 % 3"
+    exp = "6 not between 7 and 10"
+    then = time.time()
     res = expr.parse_string(exp)
-    # print(res)
-    print(f'{exp}\n\n{res}\n\nresult: {res[0].eval({})}')
+    now = time.time()
+    # print(res, now - then)
+    print(f'{exp}\n\n{res[0]}\n\nResult: {res[0].eval({})}\n\nTime: {now - then}')
