@@ -3,9 +3,12 @@ import pyparsing as pp
 from .token import Token
 from .literal import literal_value, wildcard_all
 from .identifier import col_name, func_name
+from .context import base_context
 from . import symbol as sym
 from . import keyword as kw
 
+
+pp.ParserElement.enablePackrat()
 
 class Expression(Token):
     pass
@@ -21,7 +24,9 @@ class FuncCall(Token):
         return f"<{self.__class__.__name__} func_name='{self.func_name}' args='{self.args}'>"
 
     def eval(self, context):
-        return 0
+        args = [args.eval(context) for args in self.args]
+        print(args)
+        return context['global_funcs'][self.func_name.eval(context)].eval(context, args)
 
     @classmethod
     def parse_action(cls, toks):
@@ -156,8 +161,8 @@ func_call = func_name + sym.LPARAM + \
 func_call.set_parse_action(FuncCall.parse_action)
 
 expr_term = (
-    func_call
-    | literal_value
+    literal_value
+    | func_call
     | col_name
 )
 
@@ -213,9 +218,10 @@ expr << pp.infix_notation(
 )
 
 if __name__ == '__main__':
-    exp = "6 not between 7 and 10"
+    exp = "CURRENT_DATE == date('2022-01-23')"
+
     then = time.time()
     res = expr.parse_string(exp)
     now = time.time()
     # print(res, now - then)
-    print(f'{exp}\n\n{res[0]}\n\nResult: {res[0].eval({})}\n\nTime: {now - then}')
+    print(f'{exp}\n\n{res[0]}\n\nResult: {res[0].eval(base_context)}\n\nTime: {now - then}')

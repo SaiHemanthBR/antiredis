@@ -32,7 +32,8 @@ class RowName(Identifier):
 
 
 class FuncName(Identifier):
-    pass
+    def eval(self, context):
+        return self.value
 
 
 quoted_identifier = pp.QuotedString('`')
