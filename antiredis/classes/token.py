@@ -6,5 +6,5 @@ class Token:
         pass
 
     @classmethod
-    def parse_action(cls):
-        return cls()
+    def parse_action(cls, toks):
+        return toks

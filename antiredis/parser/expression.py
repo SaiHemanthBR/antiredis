@@ -76,8 +76,7 @@ expr << pp.infix_notation(
     ]
 )
 
-where_expr = expr().set_parse_action(BoolExpression.parse_action)
-having_expr = expr().set_parse_action(BoolExpression.parse_action)
+bool_expr = expr().set_parse_action(BoolExpression.parse_action)
 
 if __name__ == '__main__':
     from ..classes.context import base_context
@@ -85,7 +84,7 @@ if __name__ == '__main__':
     exp = "CURRENT_DATE == date('2022-01-24')"
 
     then = time.time()
-    res = where_expr.parse_string(exp)
+    res = expr.parse_string(exp)
     now = time.time()
     # print(res, now - then)
     print(
