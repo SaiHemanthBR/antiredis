@@ -8,10 +8,27 @@ from . import symbol as sym
 from . import keyword as kw
 
 
-pp.ParserElement.enablePackrat()
+pp.ParserElement.enable_packrat()
 
 class Expression(Token):
-    pass
+    def __init__(self, expr):
+        super().__init__()
+        self.expr = expr
+
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__} expr='{self.expr}'>"
+
+    def eval(self, context):
+        return  self.expr.eval(context)
+
+    @classmethod
+    def parse_action(cls, toks):
+        return Expression(toks[0])
+
+
+class BoolExpression(Expression):
+    def eval(self, context):
+        return bool(super().eval(context))
 
 
 class FuncCall(Token):
@@ -25,7 +42,6 @@ class FuncCall(Token):
 
     def eval(self, context):
         args = [args.eval(context) for args in self.args]
-        print(args)
         return context['global_funcs'][self.func_name.eval(context)].eval(context, args)
 
     @classmethod
@@ -155,6 +171,7 @@ class BinaryLogicalOp(BinaryOp):
 
 
 expr = pp.Forward()
+expr.set_parse_action(Expression.parse_action)
 
 func_call = func_name + sym.LPARAM + \
     pp.Optional(pp.Group(wildcard_all | pp.delimited_list(expr))) + sym.RPARAM
@@ -217,11 +234,14 @@ expr << pp.infix_notation(
     ]
 )
 
+where_expr = expr().set_parse_action(BoolExpression.parse_action)
+having_expr = expr().set_parse_action(BoolExpression.parse_action)
+
 if __name__ == '__main__':
-    exp = "CURRENT_DATE == date('2022-01-23')"
+    exp = "CURRENT_DATE == date('2022-01-24')"
 
     then = time.time()
-    res = expr.parse_string(exp)
+    res = where_expr.parse_string(exp)
     now = time.time()
     # print(res, now - then)
     print(f'{exp}\n\n{res[0]}\n\nResult: {res[0].eval(base_context)}\n\nTime: {now - then}')
