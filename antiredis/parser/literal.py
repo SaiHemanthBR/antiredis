@@ -2,29 +2,9 @@ import pyparsing as pp
 from pyparsing import pyparsing_common as ppc
 from datetime import datetime, date
 import time
-from .token import Token
+from ..classes.literal import Literal, WildcardAll
 from . import symbol as sym
 from . import keyword as kw
-
-
-class WildcardAll(Token):
-    pass
-
-
-class Literal(Token):
-    def __init__(self, value) -> None:
-        super().__init__()
-        self.value = value
-
-    def __repr__(self) -> str:
-        return f"<{self.__class__.__name__} value='{self.value}'>"
-
-    def eval(self, context):
-        return self.value
-
-    @classmethod
-    def parse_action(cls, toks):
-        return cls(toks[0])
 
 
 wildcard_all = pp.Literal('*')
